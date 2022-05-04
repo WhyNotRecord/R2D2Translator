@@ -1,13 +1,14 @@
 #include "MainComponent.h"
 
 //==============================================================================
-MainComponent::MainComponent()
+MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf)
 {
     // Make sure you set the size of the component after
     // you add any child components.
     addAndMakeVisible(frequencySlider);
     addAndMakeVisible(volumeSlider);
     addAndMakeVisible(gateSlider);
+    addAndMakeVisible(drawer);
     //addAndMakeVisible (oscilator);
     frequencySlider.setRange(lowFreq, highFreq);
     volumeSlider.setRange(0, 0.5);
@@ -22,7 +23,7 @@ MainComponent::MainComponent()
     frequencySlider.setValue(currentFrequency, juce::NotificationType::dontSendNotification);
     volumeSlider.setValue(0.1, juce::NotificationType::dontSendNotification);
     gateSlider.setValue(0.075, juce::NotificationType::dontSendNotification);
-    setSize(600, 100);
+    setSize(640, 480);
 
     // Some platforms require permissions to open input channels so request that here
     if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
@@ -36,6 +37,8 @@ MainComponent::MainComponent()
         // Specify the number of input and output channels that we want to open
         setAudioChannels (1, 2);
     }
+    startTimerHz(60);
+
 }
 
 MainComponent::~MainComponent()
@@ -52,10 +55,15 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
     // You can use this function to initialise any resources you might need,
     // but be careful - it will be called on the audio thread, not the GUI thread.
-
-    // For more details, see the help for AudioProcessor::prepareToPlay()
     currentSampleRate = sampleRate;
+    gateSampleLength = GATE_LENGTH * sampleRate;
+
     updateAngleDelta();
+
+    //determine the max needed index of FFT result (which corresponds to max frequency)
+    float f = fftSize / currentSampleRate;
+    maxFrequencyIndex = highFreq * f + 3;
+    drawer.setNewRange(maxFrequencyIndex);
 
 }
 
@@ -69,22 +77,18 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
     auto maxOutputChannels = activeOutputChannels.getHighestBit() + 1;
     juce::Logger::writeToLog(juce::String(maxInputChannels) + " " + juce::String(maxOutputChannels));*/
 
-    //TODO: íîðìàëèçîâàòü
-    //TODO: ðåàëèçîâàòü âû÷èñëåíèå ÁÏÔ ñ íåáîëüøèì ðàçðåøåíèåì (ñêàæåì 2^8)
-    //TODO: ïî íåñêîëüêèì òî÷êàì ïîëó÷èâøåéñÿ ïîñëåäîâàòåëüíîñòè îïðåäåëÿòü ïîâåäåíèå ñèíòåçàòîðà
-    //TODO: íàïðèìåð, çíà÷åíèå â îäíîé (íåñêîëüêèõ) òî÷êå îïðåäåëÿåò ïåðåõîä íà íîâóþ ÷àñòîòó,
-    //TODO: â äðóãîé - ñêîðîñòü ïåðåõîäà
+    //TODO: Ð½Ð¾Ñ€Ð¼Ð°Ð»Ð¸Ð·Ð¾Ð²Ð°Ñ‚ÑŒ
+    //TODO: Ñ€ÐµÐ°Ð»Ð¸Ð·Ð¾Ð²Ð°Ñ‚ÑŒ Ð²Ñ‹Ñ‡Ð¸ÑÐ»ÐµÐ½Ð¸Ðµ Ð‘ÐŸÐ¤ Ñ Ð½ÐµÐ±Ð¾Ð»ÑŒÑˆÐ¸Ð¼ Ñ€Ð°Ð·Ñ€ÐµÑˆÐµÐ½Ð¸ÐµÐ¼ (ÑÐºÐ°Ð¶ÐµÐ¼ 2^8)
+    //TODO: Ð¿Ð¾ Ð½ÐµÑÐºÐ¾Ð»ÑŒÐºÐ¸Ð¼ Ñ‚Ð¾Ñ‡ÐºÐ°Ð¼ Ð¿Ð¾Ð»ÑƒÑ‡Ð¸Ð²ÑˆÐµÐ¹ÑÑ Ð¿Ð¾ÑÐ»ÐµÐ´Ð¾Ð²Ð°Ñ‚ÐµÐ»ÑŒÐ½Ð¾ÑÑ‚Ð¸ Ð¾Ð¿Ñ€ÐµÐ´ÐµÐ»ÑÑ‚ÑŒ Ð¿Ð¾Ð²ÐµÐ´ÐµÐ½Ð¸Ðµ ÑÐ¸Ð½Ñ‚ÐµÐ·Ð°Ñ‚Ð¾Ñ€Ð°
+    //TODO: Ð½Ð°Ð¿Ñ€Ð¸Ð¼ÐµÑ€, Ð·Ð½Ð°Ñ‡ÐµÐ½Ð¸Ðµ Ð² Ð¾Ð´Ð½Ð¾Ð¹ (Ð½ÐµÑÐºÐ¾Ð»ÑŒÐºÐ¸Ñ…) Ñ‚Ð¾Ñ‡ÐºÐµ Ð¾Ð¿Ñ€ÐµÐ´ÐµÐ»ÑÐµÑ‚ Ð¿ÐµÑ€ÐµÑ…Ð¾Ð´ Ð½Ð° Ð½Ð¾Ð²ÑƒÑŽ Ñ‡Ð°ÑÑ‚Ð¾Ñ‚Ñƒ,
+    //TODO: Ð² Ð´Ñ€ÑƒÐ³Ð¾Ð¹ - ÑÐºÐ¾Ñ€Ð¾ÑÑ‚ÑŒ Ð¿ÐµÑ€ÐµÑ…Ð¾Ð´Ð°
 
-    // Ó ïðîãðàìû òðè ñîñòîÿíèÿ: êàëèáðîâêà (àäàïòèðóåò ãåéò ïîä òåêóùèé óðîâåíü øóìà), ñëóøàíèå (çàïèñûâàåò è àíàëèçèðóåò çâóê)
-    // è âîñïðîèçâåäåíèå (îçâó÷èâàåò çàïèñàííóþ ôðàçó). Ïîíàäîáèòñÿ ñîîòâåòñòâóþùèé åíóì
-    // Âî âðåìÿ ïðîñëóøèâàíèÿ ïðîãðàììà àíàëèçèðóåò êàæäûé ôðåéì è ñîñòàâëÿåò êðèâûå ïî îòñ÷¸òàì ìîøíîñòè íà îïðåäåë¸ííûõ ÷àñòîòàõ
-    // (ñêàæåì, 600, 1200, 4800 Ãö). Êàê òîëüêî ââîä çàêîí÷åí ãåéò çàêðûâàåòñÿ è ïðîãðàììà ïåðåõîäèò â ðåæèì âîñïðîèçâåäåíèÿ.
-    // Â í¸ì ïðîãðàììà ñèíòåçèðóåò çâóê, à ñîñòàâëåííûå ïðè ïðîñëóøèâàíèè êðèâûå âûñòóïàþò â êà÷åñòâå àâòîìàòèçàöèè ïàðàìåòðîâ ñèíòåçà
-    // Äîëãèå ïåðåõîäû ìåæäó ÷àñòîòàìè ñèíòåçèðóåìîãî çâóêà äîëæíû ðàñòÿãèâàòüñÿ íà íåñêîëüêî âûçîâîâ îáðàáîòêè áóôåðà
-
-    float level = (float)volumeSlider.getValue();
-    auto* leftBuffer = bufferToFill.buffer->getWritePointer(0, bufferToFill.startSample);
-    auto* rightBuffer = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
+    // Ð£ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ñ‹ Ñ‚Ñ€Ð¸ ÑÐ¾ÑÑ‚Ð¾ÑÐ½Ð¸Ñ: ÐºÐ°Ð»Ð¸Ð±Ñ€Ð¾Ð²ÐºÐ° (Ð°Ð´Ð°Ð¿Ñ‚Ð¸Ñ€ÑƒÐµÑ‚ Ð³ÐµÐ¹Ñ‚ Ð¿Ð¾Ð´ Ñ‚ÐµÐºÑƒÑ‰Ð¸Ð¹ ÑƒÑ€Ð¾Ð²ÐµÐ½ÑŒ ÑˆÑƒÐ¼Ð°), ÑÐ»ÑƒÑˆÐ°Ð½Ð¸Ðµ (Ð·Ð°Ð¿Ð¸ÑÑ‹Ð²Ð°ÐµÑ‚ Ð¸ Ð°Ð½Ð°Ð»Ð¸Ð·Ð¸Ñ€ÑƒÐµÑ‚ Ð·Ð²ÑƒÐº)
+    // Ð¸ Ð²Ð¾ÑÐ¿Ñ€Ð¾Ð¸Ð·Ð²ÐµÐ´ÐµÐ½Ð¸Ðµ (Ð¾Ð·Ð²ÑƒÑ‡Ð¸Ð²Ð°ÐµÑ‚ Ð·Ð°Ð¿Ð¸ÑÐ°Ð½Ð½ÑƒÑŽ Ñ„Ñ€Ð°Ð·Ñƒ). ÐŸÐ¾Ð½Ð°Ð´Ð¾Ð±Ð¸Ñ‚ÑÑ ÑÐ¾Ð¾Ñ‚Ð²ÐµÑ‚ÑÑ‚Ð²ÑƒÑŽÑ‰Ð¸Ð¹ ÐµÐ½ÑƒÐ¼
+    // Ð’Ð¾ Ð²Ñ€ÐµÐ¼Ñ Ð¿Ñ€Ð¾ÑÐ»ÑƒÑˆÐ¸Ð²Ð°Ð½Ð¸Ñ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ð¼Ð° Ð°Ð½Ð°Ð»Ð¸Ð·Ð¸Ñ€ÑƒÐµÑ‚ ÐºÐ°Ð¶Ð´Ñ‹Ð¹ Ñ„Ñ€ÐµÐ¹Ð¼ Ð¸ ÑÐ¾ÑÑ‚Ð°Ð²Ð»ÑÐµÑ‚ ÐºÑ€Ð¸Ð²Ñ‹Ðµ Ð¿Ð¾ Ð¾Ñ‚ÑÑ‡Ñ‘Ñ‚Ð°Ð¼ Ð¼Ð¾ÑˆÐ½Ð¾ÑÑ‚Ð¸ Ð½Ð° Ð¾Ð¿Ñ€ÐµÐ´ÐµÐ»Ñ‘Ð½Ð½Ñ‹Ñ… Ñ‡Ð°ÑÑ‚Ð¾Ñ‚Ð°Ñ…
+    // (ÑÐºÐ°Ð¶ÐµÐ¼, 600, 1200, 3600 Ð“Ñ†). ÐšÐ°Ðº Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ð²Ð²Ð¾Ð´ Ð·Ð°ÐºÐ¾Ð½Ñ‡ÐµÐ½, Ð³ÐµÐ¹Ñ‚ Ð·Ð°ÐºÑ€Ñ‹Ð²Ð°ÐµÑ‚ÑÑ, Ð¸ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ð¼Ð° Ð¿ÐµÑ€ÐµÑ…Ð¾Ð´Ð¸Ñ‚ Ð² Ñ€ÐµÐ¶Ð¸Ð¼ Ð²Ð¾ÑÐ¿Ñ€Ð¾Ð¸Ð·Ð²ÐµÐ´ÐµÐ½Ð¸Ñ.
+    // Ð’ Ð½Ñ‘Ð¼ Ð¿Ñ€Ð¾Ð³Ñ€Ð°Ð¼Ð¼Ð° ÑÐ¸Ð½Ñ‚ÐµÐ·Ð¸Ñ€ÑƒÐµÑ‚ Ð·Ð²ÑƒÐº, Ð° ÑÐ¾ÑÑ‚Ð°Ð²Ð»ÐµÐ½Ð½Ñ‹Ðµ Ð¿Ñ€Ð¸ Ð¿Ñ€Ð¾ÑÐ»ÑƒÑˆÐ¸Ð²Ð°Ð½Ð¸Ð¸ ÐºÑ€Ð¸Ð²Ñ‹Ðµ Ð²Ñ‹ÑÑ‚ÑƒÐ¿Ð°ÑŽÑ‚ Ð² ÐºÐ°Ñ‡ÐµÑÑ‚Ð²Ðµ Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð¸Ð·Ð°Ñ†Ð¸Ð¸ Ð¿Ð°Ñ€Ð°Ð¼ÐµÑ‚Ñ€Ð¾Ð² ÑÐ¸Ð½Ñ‚ÐµÐ·Ð°
+    // Ð”Ð¾Ð»Ð³Ð¸Ðµ Ð¿ÐµÑ€ÐµÑ…Ð¾Ð´Ñ‹ Ð¼ÐµÐ¶Ð´Ñƒ Ñ‡Ð°ÑÑ‚Ð¾Ñ‚Ð°Ð¼Ð¸ ÑÐ¸Ð½Ñ‚ÐµÐ·Ð¸Ñ€ÑƒÐµÐ¼Ð¾Ð³Ð¾ Ð·Ð²ÑƒÐºÐ° Ð´Ð¾Ð»Ð¶Ð½Ñ‹ Ñ€Ð°ÑÑ‚ÑÐ³Ð¸Ð²Ð°Ñ‚ÑŒÑÑ Ð½Ð° Ð½ÐµÑÐºÐ¾Ð»ÑŒÐºÐ¾ Ð²Ñ‹Ð·Ð¾Ð²Ð¾Ð² Ð¾Ð±Ñ€Ð°Ð±Ð¾Ñ‚ÐºÐ¸ Ð±ÑƒÑ„ÐµÑ€Ð°
     auto* inputBuffer = bufferToFill.buffer->getReadPointer(0, bufferToFill.startSample);
 
     //primitive gate
@@ -102,7 +106,7 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
         }
         else
         {
-            if (gateCounter >= GATE_LENGTH) {
+            if (gateCounter >= gateSampleLength) {
                 gate = false;
             }
             else {
@@ -110,19 +114,41 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
             }
         }
         /*if (gate) {
-            leftBuffer[i] = curSample * level;
-            rightBuffer[i] = curSample * level;
         }*/
     }
-    if (avgCounter != 0) {
-        avg /= avgCounter;
-        //juce::Logger::writeToLog(juce::String(gate ? "open" : "closed"));
+
+    if (currentState == Idling && gate) {
+        currentState = Listening;
+    } else if (currentState == Listening && !gate) {
+        currentState = Idling;
+    }
+
+    switch (currentState)
+    {
+    case Calibrating:
+        break;
+    case Listening:
+        break;
+    case Speaking:
+        break;
+    case Idling:
+    default:
+        break;
+    }
+
+
+    float level = (float)volumeSlider.getValue();
+    auto* leftBuffer = bufferToFill.buffer->getWritePointer(0, bufferToFill.startSample);
+    auto* rightBuffer = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
+   
+    if (false) {
+        //avg /= avgCounter;
         //Array<float> bufferCopy;
-        //auto localTargetFrequency = targetFrequency;
-        juce::Logger::writeToLog("New average sample value is " + juce::String(avg) + 
-            ". New max sample value is " + juce::String(maxSample));
-        auto localTargetFrequency = (avg / maxSample) * (highFreq - lowFreq) + lowFreq;
-        juce::Logger::writeToLog("New target frequency is " + juce::String(localTargetFrequency));
+        /*juce::Logger::writeToLog("New average sample value is " + juce::String(avg) + 
+            ". New max sample value is " + juce::String(maxSample));*/
+        //auto localTargetFrequency = (avg / maxSample) * (highFreq - lowFreq) + lowFreq;
+        auto localTargetFrequency = targetFrequency;
+        //juce::Logger::writeToLog("New target frequency is " + juce::String(localTargetFrequency));
         float curSampleNorm = 0;
 
 
@@ -155,6 +181,13 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
             }
         }
     }
+
+    //if (bufferToFill.buffer->getNumChannels() > 0)
+    //auto* channelData = bufferToFill.buffer->getReadPointer(0, bufferToFill.startSample);
+        for (auto i = 0; i < bufferToFill.numSamples; ++i)
+            pushNextSampleIntoFifo(inputBuffer[i]);
+
+
     /*bufferToFill.buffer->clear(0, bufferToFill.startSample, bufferToFill.numSamples);
     bufferToFill.buffer->clear(1, bufferToFill.startSample, bufferToFill.numSamples);*/
     /*for (int i = 0; i < bufferToFill.numSamples; i++) {
@@ -196,7 +229,23 @@ void MainComponent::paint (juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
+    switch (currentState)
+    {
+    case Calibrating:
+        getParentComponent()->setName(WindowCaption + " - Calibrating");
+        break;
+    case Listening:
+        getParentComponent()->setName(WindowCaption + " - Listening");
+        break;
+    case Speaking:
+        getParentComponent()->setName(WindowCaption + " - Speaking");
+        break;
+    case Idling:
+    default:
+        getParentComponent()->setName(WindowCaption + " - Idling");
+        break;
+    }
+    repaint();//TODO only when the state was changed
     // You can add your drawing code here!
 }
 
@@ -206,7 +255,17 @@ void MainComponent::resized()
     frequencySlider.setBounds(r.removeFromTop(30).reduced(5, 0));
     volumeSlider.setBounds(r.removeFromTop(30).reduced(5, 0));
     gateSlider.setBounds(r.removeFromTop(30).reduced(5, 0));
+    drawer.setBounds(r.reduced(5, 5));
     //oscilator.setBounds(r.reduced(5, 5));
+}
+
+void MainComponent::timerCallback() {
+    if (nextFFTBlockReady)
+    {
+        processNextFFTBlock();
+        nextFFTBlockReady = false;
+        repaint();
+    }
 }
 
 void MainComponent::updateAngleDelta()
@@ -214,3 +273,65 @@ void MainComponent::updateAngleDelta()
     auto cyclesPerSample = currentFrequency / currentSampleRate;         // [2]
     angleDelta = cyclesPerSample * 2.0 * juce::MathConstants<double>::pi;          // [3]
 }
+
+void MainComponent::pushNextSampleIntoFifo(float sample) noexcept
+{
+    // if the fifo contains enough data, set a flag to say
+    // that the next line should now be rendered..
+    if (fifoIndex == fftSize)       // [8]
+    {
+        if (!nextFFTBlockReady)    // [9]
+        {
+            std::fill(fftData.begin(), fftData.end(), 0.0f);
+            std::copy(fifo.begin(), fifo.end(), fftData.begin());
+            nextFFTBlockReady = true;
+        }
+
+        fifoIndex = 0;
+    }
+
+    fifo[(size_t)fifoIndex++] = sample; // [9]
+}
+
+void MainComponent::processNextFFTBlock() {
+    forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
+    auto range = juce::FloatVectorOperations::findMinAndMax(fftData.data(), fftSize / 2);
+    juce::Logger::writeToLog(juce::String(range.getStart()) + " " + juce::String(range.getEnd()));
+    maxFFTPower = juce::jmax(maxFFTPower, range.getEnd());
+
+    for (auto y = 0; y < maxFrequencyIndex; ++y)                                              // [4]
+    {
+        //auto skewedProportionY = 1.0f - std::exp(std::log((float)y / (float)imageHeight) * 0.2f);
+        //auto fftDataIndex = (size_t)juce::jlimit(0, fftSize / 2, (int)(skewedProportionY * fftSize / 2));
+        //auto level = juce::jmap(fftData[fftDataIndex], 0.0f, juce::jmax(maxLevel.getEnd(), 1e-5f), 0.0f, 1.0f);
+        //auto level = juce::jmap(fftData[y], 0.0f, range.getEnd(), 0.0f, 1.0f);
+
+        drawer.pushValueAt(y, juce::jmap(fftData[y], range.getStart(), maxFFTPower, 0.0f, 1.0f)); // [5]
+    }
+    drawer.moveToNextLine();
+    evaluateLastBlockMainFrequency();
+    maxFFTPower *= 0.99f;
+}
+
+void MainComponent::evaluateLastBlockMainFrequency() {
+    float mainFreqIndex = 0;
+    float maxPower = 0.f;
+    for (auto y = 0; y < fftHalf; ++y) {
+        if (fftData[y] > maxPower) {
+            maxPower = fftData[y];
+            mainFreqIndex = y;
+        }
+    }
+    if (mainFreqIndex != 0) {
+        if (fftData[mainFreqIndex] * 0.95f < fftData[mainFreqIndex - 1]) {
+            mainFreqIndex -= 0.5f;
+        } else if (fftData[mainFreqIndex] * 0.95f < fftData[mainFreqIndex + 1]) {
+            mainFreqIndex += 0.5f;
+        }
+    }
+
+    float f = fftSize / currentSampleRate;
+    juce::Logger::writeToLog("Main frequency detected: " + juce::String(mainFreqIndex / f));
+
+}
+

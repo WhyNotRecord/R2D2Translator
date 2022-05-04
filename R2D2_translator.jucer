@@ -4,6 +4,10 @@
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1">
   <MAINGROUP id="qZFtGl" name="R2D2_translator">
     <GROUP id="{F3FCF4A0-6F6E-6553-ACC4-B879374F4EF7}" name="Source">
+      <FILE id="FfIU5x" name="SpectrumLineDrawer.cpp" compile="1" resource="0"
+            file="Source/SpectrumLineDrawer.cpp"/>
+      <FILE id="swc8Sq" name="SpectrumLineDrawer.h" compile="0" resource="0"
+            file="Source/SpectrumLineDrawer.h"/>
       <FILE id="peVPhl" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="Wz0pIF" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="bFOuaG" name="MainComponent.cpp" compile="1" resource="0"
@@ -30,6 +34,7 @@
         <MODULEPATH id="juce_gui_basics" path="C:/Users/whyno/JUCE/modules"/>
         <MODULEPATH id="juce_gui_extra" path="C:/Users/whyno/JUCE/modules"/>
         <MODULEPATH id="juce_osc" path="C:/Users/whyno/JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="C:/Users/whyno/JUCE/modules"/>
       </MODULEPATHS>
     </VS2019>
   </EXPORTFORMATS>
@@ -41,6 +46,7 @@
     <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
     <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
