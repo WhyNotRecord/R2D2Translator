@@ -1,7 +1,7 @@
 #include "MainComponent.h"
 
 //==============================================================================
-MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf)
+MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf), specialDrawer(64)
 {
     // Make sure you set the size of the component after
     // you add any child components.
@@ -9,6 +9,7 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf)
     addAndMakeVisible(volumeSlider);
     addAndMakeVisible(gateSlider);
     addAndMakeVisible(drawer);
+    addAndMakeVisible(specialDrawer);
     //addAndMakeVisible (oscilator);
     frequencySlider.setRange(lowFreq, highFreq);
     volumeSlider.setRange(0, 0.5);
@@ -24,6 +25,12 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf)
     volumeSlider.setValue(0.1, juce::NotificationType::dontSendNotification);
     gateSlider.setValue(0.075, juce::NotificationType::dontSendNotification);
     setSize(640, 480);
+
+    specialDrawer.setCurveColor(0, juce::Colour::fromHSV(0.0f, 1.f, 1.f, 1.f));
+    specialDrawer.setCurveColor(1, juce::Colour::fromHSV(0.1f, 1.f, 1.f, 1.f));
+    specialDrawer.setCurveColor(2, juce::Colour::fromHSV(0.2f, 1.f, 1.f, 1.f));
+    specialDrawer.setCurveColor(3, juce::Colour::fromHSV(0.3f, 1.f, 1.f, 1.f));
+    specialDrawer.setCurveColor(4, juce::Colour::fromHSV(0.4f, 1.f, 1.f, 1.f));
 
     // Some platforms require permissions to open input channels so request that here
     if (juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
@@ -60,9 +67,9 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
     updateAngleDelta();
 
-    //determine the max needed index of FFT result (which corresponds to max frequency)
-    float f = fftSize / currentSampleRate;
-    maxFrequencyIndex = highFreq * f + 3;
+    //determine the largest needed index of FFT result (which corresponds to max frequency)
+    oneBlockLength = fftSize / currentSampleRate;
+    maxFrequencyIndex = highFreq * oneBlockLength + 3;//take some extra indices for showing
     drawer.setNewRange(maxFrequencyIndex);
 
 }
@@ -255,7 +262,8 @@ void MainComponent::resized()
     frequencySlider.setBounds(r.removeFromTop(30).reduced(5, 0));
     volumeSlider.setBounds(r.removeFromTop(30).reduced(5, 0));
     gateSlider.setBounds(r.removeFromTop(30).reduced(5, 0));
-    drawer.setBounds(r.reduced(5, 5));
+    drawer.setBounds(r.removeFromTop(r.getHeight() / 2).reduced(5, 5));
+    specialDrawer.setBounds(r.reduced(5, 5));
     //oscilator.setBounds(r.reduced(5, 5));
 }
 
@@ -309,6 +317,12 @@ void MainComponent::processNextFFTBlock() {
         drawer.pushValueAt(y, juce::jmap(fftData[y], range.getStart(), maxFFTPower, 0.0f, 1.0f)); // [5]
     }
     drawer.moveToNextLine();
+    if (gate) {
+        for (int i = 0; i < mainFrequenciesCount; i++) {
+            specialDrawer.pushValueAt(i, getValueForFrequency(mainFrequencies[i]));
+        }
+    }
+    specialDrawer.moveToNextLine();
     evaluateLastBlockMainFrequency();
     maxFFTPower *= 0.99f;
 }
@@ -330,8 +344,14 @@ void MainComponent::evaluateLastBlockMainFrequency() {
         }
     }
 
-    float f = fftSize / currentSampleRate;
-    juce::Logger::writeToLog("Main frequency detected: " + juce::String(mainFreqIndex / f));
+    //float T = fftSize / currentSampleRate;
+    juce::Logger::writeToLog("Main frequency detected: " + juce::String(mainFreqIndex / oneBlockLength));
 
 }
 
+float MainComponent::getValueForFrequency(int frequency) {
+    float floatIndex = (float) frequency * oneBlockLength;
+    int intIndex = (int)floatIndex;
+    float remainder = floatIndex - intIndex;
+    return fftData[intIndex] * (1.f - remainder) + fftData[intIndex + 1] * remainder;
+}
