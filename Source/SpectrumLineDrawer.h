@@ -19,6 +19,7 @@ public:
     //==============================================================================
     void pushValueAt(int index, float value);
     void moveToNextLine();
+    void clearRemainder();
     void setNewRange(int value);
     //==============================================================================
     void paint(juce::Graphics& g) override;

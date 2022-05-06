@@ -2,8 +2,9 @@
 
 #include <JuceHeader.h>
 #include "SpectrumLineDrawer.h"
-#include "UnifiedVectorsDrawer.h"
+#include "UnifiedVectorsDrawerAlt.h"
 #define mainFrequenciesCount 5
+#define FFT_IMAGE_SEQ_LENGTH 32
 
 //==============================================================================
 /*
@@ -27,11 +28,16 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    //==============================================================================
     void updateAngleDelta();
     void pushNextSampleIntoFifo(float sample) noexcept;
+    void fillFifoWithZeros() noexcept;
     void processNextFFTBlock();
     void evaluateLastBlockMainFrequency();
     float getValueForFrequency(int frequency);
+    float getValueForFrequencyWide(int frequency);
+    void addNextFftImage(bool fin = false);
+    void resetFftImageSequence();
 
     enum MainState {
         Calibrating,
@@ -51,7 +57,8 @@ private:
     juce::Slider volumeSlider;
     juce::Slider gateSlider;
     SpectrumLineDrawer drawer;
-    UnifiedVectorsDrawer specialDrawer;
+    SpectrumLineDrawer drawer2;
+    UnifiedVectorsDrawerAlt specialDrawer;
     bool gate = false;
     juce::Random random;
     double currentSampleRate = 0.0, currentAngle = 0.0, angleDelta = 0.0; // [1]
@@ -60,7 +67,7 @@ private:
     //float volume = 0;
     float maxSample = 0;
     int gateCounter = 0;
-    const int GATE_LENGTH = 1;//gate release length in seconds
+    const float GATE_LENGTH = 0.5f;//gate release length in seconds
     int gateSampleLength;//gate release length in samples
     int lowFreq = 200, highFreq = 6400;
     int mainFrequencies[mainFrequenciesCount] = {200, 600, 1200, 3600, 6000};
@@ -70,6 +77,13 @@ private:
 
     std::array<float, fftSize> fifo;                    // [4]
     std::array<float, fftSize * 2> fftData;             // [5]
+    std::array<float, fftHalf> fftImageAccumulator;
+    std::array<std::array<float, fftHalf>, FFT_IMAGE_SEQ_LENGTH> fftImageSequence;
+    const int FFT_IMAGE_LENGTH = 8;
+    int fftImageCounter = 0;
+    int fftImageSeqCounter = 0;
+    int fftImageSpeechCounter = 0;
+    int fftImageSpeechIndex = 0;
     int fifoIndex = 0;                                  // [6]
     bool nextFFTBlockReady = false;                     // [7]
     float maxFFTPower = 1.f;

@@ -3,21 +3,23 @@
 <JUCERPROJECT id="TAyIDN" name="R2D2_translator" projectType="guiapp" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1">
   <MAINGROUP id="qZFtGl" name="R2D2_translator">
+    <GROUP id="{B31FDCBC-51DC-7749-8851-0CB7EDCAA57F}" name="Header">
+      <FILE id="FK9Vmh" name="UnifiedVectorsDrawerAlt.h" compile="0" resource="0"
+            file="Source/UnifiedVectorsDrawerAlt.h"/>
+      <FILE id="w2Gfsg" name="UnifiedVectorsDrawer.h" compile="0" resource="0"
+            file="Source/UnifiedVectorsDrawer.h"/>
+      <FILE id="Wz0pIF" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
+      <FILE id="swc8Sq" name="SpectrumLineDrawer.h" compile="0" resource="0"
+            file="Source/SpectrumLineDrawer.h"/>
+    </GROUP>
     <GROUP id="{F3FCF4A0-6F6E-6553-ACC4-B879374F4EF7}" name="Source">
       <FILE id="HgKBwn" name="UnifiedVectorsDrawerAlt.cpp" compile="1" resource="0"
             file="Source/UnifiedVectorsDrawerAlt.cpp"/>
-      <FILE id="FK9Vmh" name="UnifiedVectorsDrawerAlt.h" compile="0" resource="0"
-            file="Source/UnifiedVectorsDrawerAlt.h"/>
       <FILE id="eA6jXy" name="UnifiedVectorsDrawer.cpp" compile="1" resource="0"
             file="Source/UnifiedVectorsDrawer.cpp"/>
-      <FILE id="w2Gfsg" name="UnifiedVectorsDrawer.h" compile="0" resource="0"
-            file="Source/UnifiedVectorsDrawer.h"/>
       <FILE id="FfIU5x" name="SpectrumLineDrawer.cpp" compile="1" resource="0"
             file="Source/SpectrumLineDrawer.cpp"/>
-      <FILE id="swc8Sq" name="SpectrumLineDrawer.h" compile="0" resource="0"
-            file="Source/SpectrumLineDrawer.h"/>
       <FILE id="peVPhl" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
-      <FILE id="Wz0pIF" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
       <FILE id="bFOuaG" name="MainComponent.cpp" compile="1" resource="0"
             file="Source/MainComponent.cpp"/>
     </GROUP>

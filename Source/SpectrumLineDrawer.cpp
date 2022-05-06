@@ -16,11 +16,15 @@ SpectrumLineDrawer::SpectrumLineDrawer(int range) :
 }
 
 void SpectrumLineDrawer::pushValueAt(int index, float value) {
-    spectrogramImage.setPixelAt(rightHandEdge, index, juce::Colour::fromHSV(0.0f, 1.0f, value, 1.0f)); // [5]
+    spectrogramImage.setPixelAt(rightHandEdge, index, juce::Colour::fromHSV(0.45f, 1.0f, value, 1.0f)); // [5]
 }
 
 void SpectrumLineDrawer::moveToNextLine() {
     spectrogramImage.moveImageSection(0, 0, 1, 0, rightHandEdge, spectrogramImage.getHeight());
+}
+
+void SpectrumLineDrawer::clearRemainder() {
+    spectrogramImage.clear(juce::Rectangle<int>(rightHandEdge, 0, 1, spectrogramImage.getHeight()));
 }
 
 void SpectrumLineDrawer::setNewRange(int value) {

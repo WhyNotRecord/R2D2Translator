@@ -20,13 +20,12 @@ class UnifiedVectorsDrawer  : public juce::Component
 public:
     UnifiedVectorsDrawer(int range);
     ~UnifiedVectorsDrawer() override;
-    //SpectrumLineDrawer(int range);
 
     //==============================================================================
-    void pushValueAt(int curveIndex, float value);
-    void setCurveColor(int curveIndex, juce::Colour col);
+    virtual void pushValueAt(int curveIndex, float value);
+    virtual void setCurveColor(int curveIndex, juce::Colour col);
     void generateCurveColor(int curveIndex);
-    void moveToNextLine();
+    virtual void moveToNextLine();
     void setNewRange(int value);
 
     //==============================================================================
