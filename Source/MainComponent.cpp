@@ -25,7 +25,7 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf), drawer2(
     };
     frequencySlider.setValue(currentFrequency, juce::NotificationType::dontSendNotification);
     volumeSlider.setValue(0.1, juce::NotificationType::dontSendNotification);
-    gateSlider.setValue(0.075, juce::NotificationType::dontSendNotification);
+    gateSlider.setValue(0.1, juce::NotificationType::dontSendNotification);
     setSize(640, 480);
 
     specialDrawer.setCurveColor(0, juce::Colour::fromHSV(0.0f, 1.f, 1.f, 1.f));
@@ -46,10 +46,11 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf), drawer2(
     else
     {
         // Specify the number of input and output channels that we want to open
+        /*auto setup = deviceManager.getAudioDeviceSetup();
+        setup.bufferSize = 512;*/
         setAudioChannels (1, 2);
     }
     startTimerHz(60);
-
 }
 
 MainComponent::~MainComponent()
@@ -73,7 +74,16 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
 
     //determine the largest needed index of FFT result (which corresponds to max frequency)
     oneBlockLength = fftSize / currentSampleRate;
-    maxFrequencyIndex = highFreq * oneBlockLength + 3;//take some extra indices for showing
+    maxFrequencyIndex = (int)(highFreq * oneBlockLength + 3);//take some extra indices for showing
+
+    //smooth low-pass filter
+    fftImageFilter.clear();
+    float step = 1.0f / maxFrequencyIndex;
+    float y = 0;
+    for (int i = 0; i <= maxFrequencyIndex; i++) {
+        fftImageFilter.push_back(std::pow(y, 0.25f));
+        y += step;
+    }
     drawer.setNewRange(maxFrequencyIndex);
     drawer2.setNewRange(maxFrequencyIndex);
 }
@@ -88,23 +98,31 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
     auto maxOutputChannels = activeOutputChannels.getHighestBit() + 1;
     juce::Logger::writeToLog(juce::String(maxInputChannels) + " " + juce::String(maxOutputChannels));*/
 
-    //TODO: нормализовать
-    //TODO: реализовать вычисление БПФ с небольшим разрешением (скажем 2^8)
-    //TODO: по нескольким точкам получившейся последовательности определять поведение синтезатора
-    //TODO: например, значение в одной (нескольких) точке определяет переход на новую частоту,
-    //TODO: в другой - скорость перехода
-
     // У програмы три состояния: калибровка (адаптирует гейт под текущий уровень шума), слушание (записывает и анализирует звук)
-    // и воспроизведение (озвучивает записанную фразу). Понадобится соответствующий енум
-    // Во время прослушивания программа анализирует каждый фрейм и составляет кривые по отсчётам мошности на определённых частотах
-    // (скажем, 600, 1200, 3600 Гц). Как только ввод закончен, гейт закрывается, и программа переходит в режим воспроизведения.
+    // и воспроизведение (озвучивает записанную фразу).
+    // Во время прослушивания программа анализирует каждый фрейм и составляет карты по отсчётам мошности спектра
+    // Как только ввод закончен, гейт закрывается, и программа переходит в режим воспроизведения.
     // В нём программа синтезирует звук, а составленные при прослушивании кривые выступают в качестве автоматизации параметров синтеза
-    // Долгие переходы между частотами синтезируемого звука должны растягиваться на несколько вызовов обработки буфера
 
 
     switch (currentState)
     {
     case Calibrating:
+        if (autoGateCounter < AUTOGATE_LENGTH) {
+            auto* inputBuffer = bufferToFill.buffer->getReadPointer(0, bufferToFill.startSample);
+            for (int i = 0; i < bufferToFill.numSamples; i++) {
+                float curSampleAbs = std::abs(inputBuffer[i]);
+                if (curSampleAbs >= autoGateMaximum)
+                    autoGateMaximum = curSampleAbs;
+            }
+            autoGateCounter++;
+        }
+        else {
+            autoGateCounter = 0;
+            currentState = Idling;
+            stateChanged = true;
+            //autoGateMaximum = 0.f;
+        }
         break;
     case Speaking:
     {
@@ -113,8 +131,16 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
         auto* rightBuffer = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
 
         //auto localTargetFrequency = (avg / maxSample) * (highFreq - lowFreq) + lowFreq;
-        float value = fftImageSequence[fftImageSpeechCounter][fftImageSpeechIndex];
-        auto localTargetFrequency = juce::jmap(value, 0.f, 1.f, (float) lowFreq, (float) highFreq);
+        float value = 0.f;
+        float max = 1.f;
+        if (maxFrequencyIndex < fftHalf) {
+            max = fftImageSequence[fftImageSpeechCounter][fftHalf - 1];
+        }
+        //filtering weak frequencies
+        while ((value = fftImageSequence[fftImageSpeechCounter][(int)fftImageSpeechIndex]) < max / 8.f && fftImageSpeechIndex < maxFrequencyIndex) {
+            fftImageSpeechIndex++;
+        }
+        auto localTargetFrequency = juce::jmap(value, 0.f, max, (float) lowFreq, (float) highFreq);
         float curSampleNorm = 0;
         juce::Logger::writeToLog(juce::String(localTargetFrequency));
 
@@ -148,14 +174,16 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
             }
         }
 
-        fftImageSpeechIndex++;
-        if (fftImageSpeechIndex >= (int)maxFrequencyIndex) {
-            fftImageSpeechIndex = 0;
+        //fftImageSpeechIndex += (1.5f - value);
+        fftImageSpeechIndex += 0.125f;
+        if ((int) fftImageSpeechIndex >= maxFrequencyIndex) {
+            fftImageSpeechIndex = 0.f;
 
             fftImageSpeechCounter++;
             if (fftImageSpeechCounter >= fftImageSeqCounter) {
                 resetFftImageSequence();
-                currentState = Idling;
+                currentState = Calibrating;
+                stateChanged = true;
             }
         }
 
@@ -196,9 +224,11 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
     }
     if (currentState == Idling && gate) {
         currentState = Listening;
+        stateChanged = true;
     }
     else if (currentState == Listening && !gate) {
         currentState = Speaking;
+        stateChanged = true;
     }
     
 
@@ -246,6 +276,12 @@ void MainComponent::paint (juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    if (stateChanged) {
+        processCurrentState();
+    }
+}
+
+void MainComponent::processCurrentState() {
     switch (currentState)
     {
     case Calibrating:
@@ -258,12 +294,15 @@ void MainComponent::paint (juce::Graphics& g)
         getParentComponent()->setName(WindowCaption + " - Speaking");
         break;
     case Idling:
+        if (autoGateMaximum > 0.f) {
+            gateSlider.setValue(autoGateMaximum * 2.f);
+            autoGateMaximum = 0;
+        }
     default:
         getParentComponent()->setName(WindowCaption + " - Idling");
         break;
     }
-    repaint();//TODO only when the state was changed
-    // You can add your drawing code here!
+    repaint();
 }
 
 void MainComponent::resized()
@@ -332,8 +371,6 @@ void MainComponent::fillFifoWithZeros() noexcept {
 
 void MainComponent::processNextFFTBlock() {
     forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
-    //low-pass filter
-    fftData[0] = 0.f;
     auto range = juce::FloatVectorOperations::findMinAndMax(fftData.data(), fftSize / 2);
     juce::Logger::writeToLog(juce::String(range.getStart()) + " " + juce::String(range.getEnd()));
     maxFFTPower = juce::jmax(maxFFTPower, range.getEnd());
@@ -355,9 +392,16 @@ void MainComponent::processNextFFTBlock() {
     fftImageCounter++;
     if (fftImageCounter == FFT_IMAGE_LENGTH || fftImageCounter > 0 && !gate) {
         drawer2.clearRemainder();
+
+        float max = 0.f;
         for (auto y = 0; y < maxFrequencyIndex; ++y) {
-            fftImageAccumulator[y] = juce::jmin(fftImageAccumulator[y] * 5 / fftImageCounter, 1.0f);//multiplying by 5 for clear view
+            fftImageAccumulator[y] = fftImageFilter[y] * juce::jmin(fftImageAccumulator[y] / fftImageCounter, 1.0f);
             drawer2.pushValueAt(y, fftImageAccumulator[y]);
+            if (fftImageAccumulator[y] > max)
+                max = fftImageAccumulator[y];
+        }
+        if (maxFrequencyIndex < fftHalf) {
+            fftImageAccumulator[fftHalf - 1] = max;
         }
         addNextFftImage();
 
@@ -384,7 +428,7 @@ void MainComponent::processNextFFTBlock() {
     }
     specialDrawer.moveToNextLine();*/
     //evaluateLastBlockMainFrequency();
-    maxFFTPower *= 0.99f;//gradually lowers range and recovers sensibility
+    maxFFTPower *= 0.95f;//gradually lowers range and recovers sensibility
 }
 
 void MainComponent::evaluateLastBlockMainFrequency() {
