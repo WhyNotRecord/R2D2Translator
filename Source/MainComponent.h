@@ -85,7 +85,7 @@ private:
     std::array<float, fftSize * 2> fftData;             // [5]
     std::array<float, fftHalf> fftImageAccumulator;
     std::array<std::array<float, fftHalf>, FFT_IMAGE_SEQ_LENGTH> fftImageSequence;
-    const int FFT_IMAGE_LENGTH = 7;
+    const int FFT_IMAGE_LENGTH = 16;//number of FFT spectrum arrays to form one image (imprint)
     int fftImageCounter = 0;
     int fftImageSeqCounter = 0;
     int fftImageSpeechCounter = 0;

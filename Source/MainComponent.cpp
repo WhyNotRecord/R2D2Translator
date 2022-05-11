@@ -3,7 +3,7 @@
 #include "Const.h"
 
 //==============================================================================
-MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf, 512), drawer2(fftHalf, 512)//, specialDrawer(64, 10)
+MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf, 512), drawer2(fftHalf, 512), gateSampleLength(1024)//, specialDrawer(64, 10)
 {
     // Make sure you set the size of the component after
     // you add any child components.
@@ -22,7 +22,7 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf, 512), dra
     //addAndMakeVisible(specialDrawer);
     //addAndMakeVisible (oscilator);
     volumeSlider.setRange(0, 0.5);
-    gateSlider.setRange(0, 0.20);
+    gateSlider.setRange(0, 0.5);
     volumeSlider.setSkewFactorFromMidPoint(0.1); // [4]
     volumeSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, volumeSlider.getTextBoxWidth(), volumeSlider.getTextBoxHeight());
     gateSlider.setTextBoxStyle(juce::Slider::TextBoxRight, false, gateSlider.getTextBoxWidth(), gateSlider.getTextBoxHeight());
@@ -53,10 +53,12 @@ MainComponent::MainComponent() : forwardFFT(fftOrder), drawer(fftHalf, 512), dra
     else
     {
         // Specify the number of input and output channels that we want to open
-        /*auto setup = deviceManager.getAudioDeviceSetup();
-        setup.bufferSize = 512;*/
         setAudioChannels (1, 2);
     }
+    auto setup = deviceManager.getAudioDeviceSetup();
+    setup.bufferSize = 1024;
+    juce::Logger::writeToLog(juce::String(setup.bufferSize));
+
     startTimerHz(60);
 }
 
@@ -67,7 +69,7 @@ MainComponent::~MainComponent()
 }
 
 //==============================================================================
-void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRate)
+void MainComponent::prepareToPlay (int, double sampleRate)
 {
     // This function will be called when the audio device is started, or when
     // its settings (i.e. sample rate, block size, etc) are changed.
@@ -80,18 +82,18 @@ void MainComponent::prepareToPlay (int samplesPerBlockExpected, double sampleRat
     juce::BigInteger activeOutputChannels = device->getActiveOutputChannels();
     auto maxInputChannels = activeInputChannels.getHighestBit() + 1;
     auto maxOutputChannels = activeOutputChannels.getHighestBit() + 1;
-    if (activeInputChannels < 1 || activeOutputChannels < 2) {
+    if (maxInputChannels < 1 || maxOutputChannels < 2) {
         juce::Logger::writeToLog("At least 1 input and 2 output channels required");
         currentState = Error;
     }
 
     currentSampleRate = sampleRate;
-    gateSampleLength = GATE_LENGTH * sampleRate;
+    gateSampleLength = (int) (GATE_LENGTH * sampleRate);
 
     updateAngleDelta();
 
     //determine the largest needed index of FFT result (which corresponds to max frequency)
-    oneBlockLength = fftSize / currentSampleRate;
+    oneBlockLength = (float)(fftSize / currentSampleRate);
     maxFrequencyIndex = (int)(highFreq * oneBlockLength + 3);//take some extra indices for showing
 
     //smooth low-pass filter
@@ -164,7 +166,7 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
 
         if (localTargetFrequency != currentFrequency) {
             auto frequencyIncrement = (localTargetFrequency - currentFrequency) / bufferToFill.numSamples;
-            juce::Logger::writeToLog("Change branch");
+            //juce::Logger::writeToLog("Change branch");
             for (auto sample = 0; sample < bufferToFill.numSamples; ++sample)
             {
                 auto currentSample = (float)std::sin(currentAngle);
@@ -179,7 +181,7 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
             currentFrequency = localTargetFrequency;
         }
         else {
-            juce::Logger::writeToLog("Const branch");
+            //juce::Logger::writeToLog("Const branch");
             for (auto sample = 0; sample < bufferToFill.numSamples; ++sample)
             {
                 auto currentSample = (float)std::sin(currentAngle);
@@ -310,7 +312,7 @@ void MainComponent::processCurrentState() {
         break;
     case Idling:
         if (autoGateMaximum > 0.f) {
-            gateSlider.setValue(juce::jmax(autoGateMaximum * 2.f, 0.1f));
+            gateSlider.setValue(juce::jmax(autoGateMaximum * 1.5f, 0.1f));
             autoGateMaximum = 0;
         }
     default:
@@ -403,7 +405,7 @@ void MainComponent::processNextFFTBlock() {
     //juce::Logger::writeToLog(juce::String(range.getStart()) + " " + juce::String(range.getEnd()));
     maxFFTPower = juce::jmax(maxFFTPower, range.getEnd());
 
-    float halfMax = range.getEnd() / 2.f;
+    //float halfMax = range.getEnd() / 2.f;
 
     for (auto y = 0; y < maxFrequencyIndex; ++y)                                              // [4]
     {
@@ -464,7 +466,7 @@ float MainComponent::evaluateLastBlockMainFrequency() {
     for (auto y = 0; y < fftHalf; ++y) {
         if (fftData[y] > maxPower) {
             maxPower = fftData[y];
-            mainFreqIndex = y;
+            mainFreqIndex = (float) y;
         }
     }
     if (mainFreqIndex != 0) {
