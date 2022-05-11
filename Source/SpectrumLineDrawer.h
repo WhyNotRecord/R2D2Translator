@@ -14,7 +14,7 @@
 
 class SpectrumLineDrawer : public juce::Component {
 public:
-    SpectrumLineDrawer(int range);
+    SpectrumLineDrawer(int range, int width);
 
     //==============================================================================
     void pushValueAt(int index, float value);

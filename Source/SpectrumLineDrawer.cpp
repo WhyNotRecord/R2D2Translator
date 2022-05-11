@@ -10,9 +10,9 @@
 
 #include "SpectrumLineDrawer.h"
 
-SpectrumLineDrawer::SpectrumLineDrawer(int range) :
-    spectrogramImage(juce::Image::RGB, 1024, range, true) {
-    rightHandEdge = spectrogramImage.getWidth() - 1;
+SpectrumLineDrawer::SpectrumLineDrawer(int range, int width = 1024) :
+    spectrogramImage(juce::Image::RGB, width, range, true) {
+    rightHandEdge = width - 1;
 }
 
 void SpectrumLineDrawer::pushValueAt(int index, float value) {
@@ -28,7 +28,7 @@ void SpectrumLineDrawer::clearRemainder() {
 }
 
 void SpectrumLineDrawer::setNewRange(int value) {
-    spectrogramImage = juce::Image(juce::Image::RGB, 1024, value, true);
+    spectrogramImage = juce::Image(juce::Image::RGB, spectrogramImage.getWidth(), value, true);
 }
 
 void SpectrumLineDrawer::paint(juce::Graphics& g) {

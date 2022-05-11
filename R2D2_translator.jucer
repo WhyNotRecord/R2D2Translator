@@ -4,6 +4,7 @@
               addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1">
   <MAINGROUP id="qZFtGl" name="R2D2_translator">
     <GROUP id="{B31FDCBC-51DC-7749-8851-0CB7EDCAA57F}" name="Header">
+      <FILE id="ov6i2S" name="Const.h" compile="0" resource="0" file="Source/Const.h"/>
       <FILE id="FK9Vmh" name="UnifiedVectorsDrawerAlt.h" compile="0" resource="0"
             file="Source/UnifiedVectorsDrawerAlt.h"/>
       <FILE id="w2Gfsg" name="UnifiedVectorsDrawer.h" compile="0" resource="0"

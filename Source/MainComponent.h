@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include "SpectrumLineDrawer.h"
 #include "UnifiedVectorsDrawerAlt.h"
-//#define mainFrequenciesCount 5
+
 #define FFT_IMAGE_SEQ_LENGTH 32
 #define FADEOUT_LENGTH 10
 #define AUTOGATE_LENGTH 75
@@ -36,9 +36,8 @@ public:
     void pushNextSampleIntoFifo(float sample) noexcept;
     void fillFifoWithZeros() noexcept;
     void processNextFFTBlock();
-    void evaluateLastBlockMainFrequency();
+    float evaluateLastBlockMainFrequency();
     float getValueForFrequency(int frequency);
-    float getValueForFrequencyWide(int frequency);
     void addNextFftImage(bool fin = false);
     void resetFftImageSequence();
 
@@ -46,7 +45,9 @@ public:
         Calibrating,
         Idling,
         Listening,
-        Speaking
+        Speaking,
+        FadingOut,
+        Error
     };
 
     static constexpr auto fftOrder = 8;                // [1]
@@ -56,25 +57,27 @@ public:
 private:
     MainState currentState = Calibrating;
     const juce::String WindowCaption = "R2D2 Speech Translator";
-    juce::Slider frequencySlider;
     juce::Slider volumeSlider;
+    juce::Label volumeLabel;
     juce::Slider gateSlider;
+    juce::Label gateLabel;
+    juce::TextEditor artBox;
     SpectrumLineDrawer drawer;
     SpectrumLineDrawer drawer2;
-    UnifiedVectorsDrawerAlt specialDrawer;
+    //UnifiedVectorsDrawerAlt specialDrawer;
     bool gate = false;
+    bool imageReady = false;
     bool stateChanged = true;
-    juce::Random random;
+    //juce::Random random;
     double currentSampleRate = 0.0, currentAngle = 0.0, angleDelta = 0.0; // [1]
     double currentFrequency = 440.0, targetFrequency = 440.0;
     float oneBlockLength = 1;
     //float volume = 0;
-    float maxSample = 0;
+    //float maxSample = 0;
     int gateCounter = 0;
     const float GATE_LENGTH = 0.5f;//gate release length in seconds
     int gateSampleLength;//gate release length in samples
     int lowFreq = 100, highFreq = 4800;
-    //int mainFrequencies[mainFrequenciesCount] = {200, 600, 1200, 3600, 6000};
 
     juce::dsp::FFT forwardFFT;
 
@@ -92,10 +95,9 @@ private:
     float maxFFTPower = 1.f;
     int maxFrequencyIndex = fftHalf;
     float autoGateMaximum = 0.f;
-    int autoGateCounter = 0;
+    int autoGateCounter = AUTOGATE_LENGTH;
 
     std::vector<float> fftImageFilter;
-
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
