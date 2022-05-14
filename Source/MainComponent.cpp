@@ -213,14 +213,16 @@ void MainComponent::getNextAudioBlock (const juce::AudioSourceChannelInfo& buffe
         auto* leftBuffer = bufferToFill.buffer->getWritePointer(0, bufferToFill.startSample);
         auto* rightBuffer = bufferToFill.buffer->getWritePointer(1, bufferToFill.startSample);
         float curSampleNorm = 0.f;
+        float fadeFactor = 1.f;
         for (auto sample = 0; sample < bufferToFill.numSamples; ++sample)
         {
             auto currentSample = (float)std::sin(currentAngle);
             currentAngle += angleDelta;
-            curSampleNorm = currentSample * level * std::pow(0.99f, (float) sample);
+            curSampleNorm = currentSample * level * fadeFactor;
             //juce::Logger::writeToLog("Fading " + juce::String(curSampleNorm));
             leftBuffer[sample] = curSampleNorm;
             rightBuffer[sample] = curSampleNorm;
+            fadeFactor *= 0.99f;
         }
         leftBuffer[bufferToFill.numSamples - 1] = 0.f;
         rightBuffer[bufferToFill.numSamples - 1] = 0.f;
